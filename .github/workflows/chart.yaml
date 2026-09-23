@@ -1,0 +1,108 @@
+name: chart
+
+on:
+  pull_request:
+    paths: ["helm/**", ".github/workflows/chart.yaml"]
+  push:
+    branches: [main]
+    paths: ["helm/**", ".github/workflows/chart.yaml"]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint helm/mogenius-agent-sandbox
+      - name: render with default, GKE and multi-profile values
+        run: |
+          helm template t helm/mogenius-agent-sandbox -n agent-sandbox-system >/dev/null
+          helm template t helm/mogenius-agent-sandbox -n agent-sandbox-system \
+            --set sandboxes.runtimeClassName=gvisor \
+            --set 'sandboxes.networkPolicy.additionalBlockedCidrs={34.118.224.0/20}' \
+            --set sandboxes.profiles.opencode.enabled=true >/dev/null
+      # A broken image string (whitespace, template leftovers) only shows up as
+      # InvalidImageName at runtime; catch it here for every profile.
+      - name: image references parse
+        run: |
+          set -euo pipefail
+          helm template t helm/mogenius-agent-sandbox -n agent-sandbox-system \
+            --set sandboxes.profiles.opencode.enabled=true \
+            | grep -E '^[[:space:]]*image:' | sed -E 's/^[[:space:]]*image:[[:space:]]*//; s/"//g' | tee /tmp/images.txt
+          ! grep -vE '^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)*(:[A-Za-z0-9._-]+)?(@sha256:[0-9a-f]{64})?$' /tmp/images.txt
+      - name: CRDs match appVersion
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -E '^appVersion:' helm/mogenius-agent-sandbox/Chart.yaml | awk '{print $2}')"
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o /tmp/upstream.yaml \
+            "https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${VERSION}/sandbox-with-extensions.yaml"
+          # every CRD in crds/ must appear byte-identical in the upstream release
+          for f in helm/mogenius-agent-sandbox/crds/*.yaml; do
+            grep -qF -- "$(sed -n '3p' "$f")" /tmp/upstream.yaml || { echo "CRD $f not from $VERSION"; exit 1; }
+          done
+
+  # Installs the chart into a kind cluster and waits for a warm sandbox — the
+  # same check the local kit does on Docker Desktop.
+  install:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      # The image workflow publishes the default sandbox image from this repo;
+      # on a push that changes both, wait for it instead of failing the pull.
+      - name: wait for the default sandbox image
+        run: |
+          set -euo pipefail
+          img=$(grep -E '^[[:space:]]+image: ghcr\.io/.*/sandbox-default' helm/mogenius-agent-sandbox/values.yaml | head -1 | sed -E 's/^[[:space:]]+image: //')
+          echo "waiting for $img"
+          for _ in $(seq 1 60); do
+            docker manifest inspect "$img" >/dev/null 2>&1 && { echo "image available"; exit 0; }
+            sleep 30
+          done
+          echo "::error::$img not available after 30 minutes"; exit 1
+      - uses: helm/kind-action@v1
+      - run: |
+          set -euo pipefail
+          helm install asb helm/mogenius-agent-sandbox -n agent-sandbox-system --create-namespace --wait --timeout 5m
+          for _ in $(seq 1 120); do
+            ready=$(kubectl -n agent-sandbox get sandboxwarmpool default -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)
+            [ "${ready:-0}" -ge 1 ] && break
+            sleep 5
+          done
+          kubectl -n agent-sandbox get sandboxwarmpool,sandboxes,pods
+          [ "${ready:-0}" -ge 1 ] || { kubectl -n agent-sandbox describe pods; kubectl -n agent-sandbox-system logs deploy/agent-sandbox-controller --tail=100; exit 1; }
+
+  # Publishes the chart to the mogenius Helm repository (https://helm.mogenius.com/public),
+  # the same way mogenius-operator and renovate-operator are published. The
+  # blueprint in mogenius/helm-chart-blueprints references `mogenius/mogenius-agent-sandbox`.
+  # Needs the organisation secrets MO_HELMUSER / MO_HELMPASS. Versions already
+  # in the index are skipped, so re-runs and doc-only pushes are safe.
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [lint, install]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: publish to helm.mogenius.com
+        env:
+          HELM_USER: ${{ secrets.MO_HELMUSER }}
+          HELM_PASS: ${{ secrets.MO_HELMPASS }}
+        run: |
+          set -euo pipefail
+          chart=helm/mogenius-agent-sandbox
+          name=$(grep -E '^name:' $chart/Chart.yaml | awk '{print $2}')
+          version=$(grep -E '^version:' $chart/Chart.yaml | awk '{print $2}')
+          if curl -fsSL --retry 3 https://helm.mogenius.com/public/index.yaml | grep -qE "^\s+version: \"?${version}\"?$" \
+             && curl -fsSL https://helm.mogenius.com/public/index.yaml | grep -qE "^\s+- charts/${name}-${version}\.tgz$"; then
+            echo "${name} ${version} is already published; nothing to do"; exit 0
+          fi
+          [ -n "$HELM_USER" ] && [ -n "$HELM_PASS" ] || { echo "::error::MO_HELMUSER / MO_HELMPASS are not set"; exit 1; }
+          helm package $chart -d /tmp >/dev/null
+          curl --fail-with-body -sS -u "$HELM_USER:$HELM_PASS" --data-binary "@/tmp/${name}-${version}.tgz" \
+            https://helm.mogenius.com/api/public/charts
+          echo; echo "published ${name} ${version} to https://helm.mogenius.com/public"

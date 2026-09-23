@@ -1,0 +1,63 @@
+# Default sandbox image of the mogenius Agent Sandbox blueprint.
+#
+# VS Code in the browser (code-server) plus the tooling agents expect from a
+# Daytona-style default sandbox: Python 3 with pip/venv and uv, Node.js LTS with
+# TypeScript/tsx, git, curl, build tools, and Claude Code. Runs as the unprivileged user
+# `coder` (uid 1000); the sandbox volume is mounted at /home/coder/project.
+#
+# code-server listens on 8080 without its own auth: sandboxes are only
+# reachable through the mogenius tunnel (which authenticates) or the SSH
+# gateway, and the chart's NetworkPolicy blocks everything else.
+ARG CODE_SERVER_VERSION=4.138.0
+FROM codercom/code-server:${CODE_SERVER_VERSION}
+
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      python3 python3-pip python3-venv python3-dev \
+      build-essential pkg-config \
+      jq ripgrep unzip rsync less openssh-server ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -sf /usr/bin/python3 /usr/local/bin/python \
+ && mkdir -p /home/coder/project /home/coder/.local/bin \
+ && chown -R coder:coder /home/coder
+
+# uv: fast Python package manager, what most agent frameworks call today.
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+# Node.js LTS: code-server only ships its private node binary, so install a
+# system Node for agents and tooling (NodeSource has amd64 and arm64 builds).
+ARG NODE_MAJOR=22
+RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && rm -rf /var/lib/apt/lists/*
+
+# Claude Code plus the TypeScript runners agents call, globally so they are on
+# PATH for every user. Authentication happens per sandbox: ANTHROPIC_API_KEY or
+# CLAUDE_CODE_OAUTH_TOKEN from the chart's env (Secret `sandbox-provider-keys`,
+# managed by the Sandboxes page) or an interactive `claude` login.
+ARG CLAUDE_CODE_VERSION=latest
+RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" typescript tsx \
+ && npm cache clean --force
+
+USER coder
+WORKDIR /home/coder/project
+ENV PATH="/home/coder/.local/bin:${PATH}" \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
+    UV_LINK_MODE=copy
+
+# Pre-create the settings dir so the volume mount does not hide it.
+RUN mkdir -p /home/coder/.local/share/code-server/User \
+ && printf '{ "workbench.startupEditor": "none", "telemetry.telemetryLevel": "off" }\n' \
+      > /home/coder/.local/share/code-server/User/settings.json
+
+# Claude Code's first-run wizard asks for a theme and a login method even when
+# CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY are set; the browser login cannot
+# complete from inside a sandbox (localhost callback). Mark onboarding as done so
+# `claude` starts straight away and authenticates from the environment.
+RUN printf '{ "hasCompletedOnboarding": true, "theme": "dark" }\n' > /home/coder/.claude.json
+
+EXPOSE 8080
+# /healthz is code-server's health endpoint; the chart's probes use it.
+ENTRYPOINT ["/usr/bin/entrypoint.sh", "--bind-addr", "0.0.0.0:8080", "--auth", "none", "/home/coder/project"]
