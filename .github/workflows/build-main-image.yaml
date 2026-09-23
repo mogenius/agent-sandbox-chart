@@ -1,0 +1,21 @@
+
+name: Build main Image
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-sandbox-default:
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@7a686ad01785edfadc6d4f3e7c198653249845a2 # v1.8.4
+    secrets: inherit
+    with:
+      version: "main"
+      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-default
+      dockerfile: images/sandbox-default/Dockerfile
+      push_latest: false

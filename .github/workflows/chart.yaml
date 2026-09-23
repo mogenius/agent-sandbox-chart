@@ -75,34 +75,3 @@ jobs:
           done
           kubectl -n agent-sandbox get sandboxwarmpool,sandboxes,pods
           [ "${ready:-0}" -ge 1 ] || { kubectl -n agent-sandbox describe pods; kubectl -n agent-sandbox-system logs deploy/agent-sandbox-controller --tail=100; exit 1; }
-
-  # Publishes the chart to the mogenius Helm repository (https://helm.mogenius.com/public),
-  # the same way mogenius-operator and renovate-operator are published. The
-  # blueprint in mogenius/helm-chart-blueprints references `mogenius/mogenius-agent-sandbox`.
-  # Needs the organisation secrets MO_HELMUSER / MO_HELMPASS. Versions already
-  # in the index are skipped, so re-runs and doc-only pushes are safe.
-  release:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    needs: [lint, install]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
-      - name: publish to helm.mogenius.com
-        env:
-          HELM_USER: ${{ secrets.MO_HELMUSER }}
-          HELM_PASS: ${{ secrets.MO_HELMPASS }}
-        run: |
-          set -euo pipefail
-          chart=helm/mogenius-agent-sandbox
-          name=$(grep -E '^name:' $chart/Chart.yaml | awk '{print $2}')
-          version=$(grep -E '^version:' $chart/Chart.yaml | awk '{print $2}')
-          if curl -fsSL --retry 3 https://helm.mogenius.com/public/index.yaml | grep -qE "^\s+version: \"?${version}\"?$" \
-             && curl -fsSL https://helm.mogenius.com/public/index.yaml | grep -qE "^\s+- charts/${name}-${version}\.tgz$"; then
-            echo "${name} ${version} is already published; nothing to do"; exit 0
-          fi
-          [ -n "$HELM_USER" ] && [ -n "$HELM_PASS" ] || { echo "::error::MO_HELMUSER / MO_HELMPASS are not set"; exit 1; }
-          helm package $chart -d /tmp >/dev/null
-          curl --fail-with-body -sS -u "$HELM_USER:$HELM_PASS" --data-binary "@/tmp/${name}-${version}.tgz" \
-            https://helm.mogenius.com/api/public/charts
-          echo; echo "published ${name} ${version} to https://helm.mogenius.com/public"
