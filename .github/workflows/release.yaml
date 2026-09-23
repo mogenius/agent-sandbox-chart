@@ -1,0 +1,103 @@
+name: Build, Package, Release (Production)
+
+on:
+  push:
+    tags:
+      - '[0-9]*.[0-9]*.[0-9]*'
+
+env:
+  REGISTRY: ghcr.io
+  HELMNAME: "mogenius-agent-sandbox"
+
+jobs:
+  build-image:
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@7a686ad01785edfadc6d4f3e7c198653249845a2 # v1.8.4
+    secrets: inherit
+    with:
+      version: ${{ github.ref_name }}
+      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-default
+      dockerfile: images/sandbox-default/Dockerfile
+      push_latest: true
+
+  helm-chart:
+    needs: [build-image]
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_SECRET }}
+
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        id: install
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+
+      - name: Run helm-docs
+        uses: losisin/helm-docs-github-action@9e0787c426fdec38be6288bb5c0559dcb388412c # v2.0.1
+        with:
+          chart-search-root: helm/mogenius-agent-sandbox
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: package and push
+        run: |
+          VERSION=${{ github.ref_name }}
+
+          sed -i "s/^version:.*/version: $VERSION/" helm/mogenius-agent-sandbox/Chart.yaml
+          sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-default:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:$VERSION|g" helm/mogenius-agent-sandbox/values.yaml
+
+          git add helm/mogenius-agent-sandbox/Chart.yaml helm/mogenius-agent-sandbox/values.yaml
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            echo "Packaging Helm chart"
+            helm package -d /tmp/ ./helm/mogenius-agent-sandbox
+
+            echo "Pushing to Helm repository"
+            curl -XPOST -L -k --data-binary "@/tmp/${{ env.HELMNAME }}-$VERSION.tgz" https://${{ secrets.MO_HELMUSER }}:${{ secrets.MO_HELMPASS }}@helm.mogenius.com/api/public/charts
+
+            echo "Pushing to OCI registry"
+            echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io --username ${{ github.actor }} --password-stdin
+            CHART_DIGEST=$(helm push /tmp/${{ env.HELMNAME }}-$VERSION.tgz oci://ghcr.io/${{ github.repository_owner }}/helm-charts 2>&1 | grep "Digest: sha256:" | awk '{print $2}')
+
+            if [ -z "$CHART_DIGEST" ]; then
+              echo "Failed to extract chart digest"
+              exit 1
+            fi
+            echo "Chart digest: $CHART_DIGEST"
+
+            echo "Signing Helm chart with cosign"
+            cosign sign --yes ghcr.io/${{ github.repository_owner }}/helm-charts/${{ env.HELMNAME }}@${CHART_DIGEST}
+
+            git commit -m "chore: update Chart.yaml and documentation for version $VERSION [skip ci]"
+
+            git pull --rebase
+            git push origin main
+          fi

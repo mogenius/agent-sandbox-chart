@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base",
+    ":semanticCommits"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^hack/agent-sandbox-version$/"],
+      "matchStrings": ["(?<currentValue>v[^\\n]+)"],
+      "depNameTemplate": "kubernetes-sigs/agent-sandbox",
+      "datasourceTemplate": "github-releases"
+    },
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["kubernetes-sigs/agent-sandbox"],
+      "semanticCommitType": "fix",
+      "postUpgradeTasks": {
+        "commands": ["hack/update-upstream.sh {{newVersion}}"],
+        "fileFilters": [
+          "helm/mogenius-agent-sandbox/crds/**",
+          "helm/mogenius-agent-sandbox/Chart.yaml"
+        ],
+        "executionMode": "update"
+      }
+    }
+  ]
+}

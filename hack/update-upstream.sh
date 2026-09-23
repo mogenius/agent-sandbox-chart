@@ -3,10 +3,15 @@
 # release and bumps appVersion in Chart.yaml. RBAC and the controller Deployment
 # are templated by hand — diff them against the printed upstream objects.
 #
+# Called automatically by Renovate's postUpgradeTasks when agent-sandbox releases
+# a new version. Can also be run manually:
+#
 #   hack/update-upstream.sh v1.0.2
 set -euo pipefail
 
-VERSION="${1:?usage: hack/update-upstream.sh <upstream version, e.g. v1.0.2>}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION="${1:-$(tr -d '[:space:]' < "$SCRIPT_DIR/agent-sandbox-version")}"
+: "${VERSION:?usage: hack/update-upstream.sh <upstream version, e.g. v1.0.2>}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CHART="$ROOT/helm/mogenius-agent-sandbox"
 URL="https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${VERSION}/sandbox-with-extensions.yaml"
