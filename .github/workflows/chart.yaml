@@ -14,8 +14,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
       - run: helm lint helm/mogenius-agent-sandbox
       - name: render with default, GKE and multi-profile values
         run: |
@@ -50,8 +50,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
       # The image workflow publishes the default sandbox image from this repo;
       # on a push that changes both, wait for it instead of failing the pull.
       - name: wait for the default sandbox image
@@ -64,7 +64,7 @@ jobs:
             sleep 30
           done
           echo "::error::$img not available after 30 minutes"; exit 1
-      - uses: helm/kind-action@v1
+      - uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
       - run: |
           set -euo pipefail
           helm install asb helm/mogenius-agent-sandbox -n agent-sandbox-system --create-namespace --wait --timeout 5m
