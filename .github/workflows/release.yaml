@@ -17,6 +17,7 @@ jobs:
       version: ${{ github.ref_name }}
       image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-default
       dockerfile: images/sandbox-default/Dockerfile
+      architectures: amd64,arm64
       push_latest: true
 
   helm-chart:

@@ -1,4 +1,3 @@
-
 name: Build main Image
 
 on:
@@ -18,4 +17,5 @@ jobs:
       version: "main"
       image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-default
       dockerfile: images/sandbox-default/Dockerfile
+      architectures: amd64,arm64
       push_latest: false
