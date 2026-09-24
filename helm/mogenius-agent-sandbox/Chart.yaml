@@ -10,7 +10,7 @@ type: application
 version: 1.2.0
 # Upstream agent-sandbox release the CRDs and the controller default image come from.
 # Keep crds/ in sync via hack/update-upstream.sh when bumping.
-appVersion: v1.0.2
+appVersion: v1.0.4
 kubeVersion: ">=1.25.0-0"
 keywords:
   - agent
