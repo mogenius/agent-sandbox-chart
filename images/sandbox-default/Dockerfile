@@ -8,7 +8,7 @@
 # code-server listens on 8080 without its own auth: sandboxes are only
 # reachable through the mogenius tunnel (which authenticates) or the SSH
 # gateway, and the chart's NetworkPolicy blocks everything else.
-ARG CODE_SERVER_VERSION=4.138.0
+ARG CODE_SERVER_VERSION=4.139.1
 FROM codercom/code-server:${CODE_SERVER_VERSION}
 
 USER root
