@@ -11,12 +11,11 @@
       "matchStrings": ["(?<currentValue>v[^\\n]+)"],
       "depNameTemplate": "kubernetes-sigs/agent-sandbox",
       "datasourceTemplate": "github-releases"
-    },
+    }
   ],
   "packageRules": [
     {
       "matchPackageNames": ["kubernetes-sigs/agent-sandbox"],
-      "semanticCommitType": "fix",
       "postUpgradeTasks": {
         "commands": ["hack/update-upstream.sh {{newVersion}}"],
         "fileFilters": [
@@ -25,6 +24,22 @@
         ],
         "executionMode": "update"
       }
+    },
+    {
+      "matchManagers": ["!github-actions"],
+      "matchUpdateTypes": ["patch", "digest"],
+      "semanticCommitType": "fix"
+    },
+    {
+      "matchManagers": ["!github-actions"],
+      "matchUpdateTypes": ["minor"],
+      "semanticCommitType": "feat"
+    },
+    {
+      "matchManagers": ["!github-actions"],
+      "matchUpdateTypes": ["major"],
+      "semanticCommitType": "feat",
+      "commitBody": "BREAKING CHANGE: Major update of {{depName}} to {{newVersion}}"
     }
   ]
 }
