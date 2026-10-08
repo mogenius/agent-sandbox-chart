@@ -193,7 +193,7 @@ sandboxes:
     # the same `sandbox-provider-keys` Secret the Sandboxes page manages.
     opencode:
       enabled: false
-      image: ghcr.io/anomalyco/opencode:2.0.18@sha256:aa0e5ac93543f24c99dfcc72a6ea7df335faec131dafc16f7607a2c7d3173d28
+      image: ghcr.io/anomalyco/opencode:2.0.26@sha256:15b62c742c702b9750b7636cf3979823c653ef212e66ab217376ca0f32c1ca71
       imagePullPolicy: IfNotPresent
       containerName: opencode
       command: []
