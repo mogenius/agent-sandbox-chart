@@ -17,7 +17,7 @@
 ARG OPENCODE_VERSION=2.0.27
 FROM ghcr.io/anomalyco/opencode:${OPENCODE_VERSION} AS opencode
 
-FROM alpine:3.22
+FROM alpine:3.24
 
 ARG CLAUDE_CODE_VERSION=latest
 
