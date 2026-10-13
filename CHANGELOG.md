@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/mogenius/agent-sandbox-chart/compare/1.2.1...1.3.0) (2026-10-13)
+
+
+### Features
+
+* claude-code in the sandbox-opencode image ([b5f65b8](https://github.com/mogenius/agent-sandbox-chart/commit/b5f65b877999b91d0e4518e008b232d628214f49))
+* **deps:** update codercom/code-server docker tag to v4.141.0 ([7a48405](https://github.com/mogenius/agent-sandbox-chart/commit/7a48405b5ef8dc4660451e9a966ea2bb94255f24))
+
+
+### Bug Fixes
+
+* build and publish the sandbox-opencode image with each release; platform-test profile with a sandbox image for browser-based platform tests; platform-test profile with a sandbox image for browser-based platform tests ([8eebbf9](https://github.com/mogenius/agent-sandbox-chart/commit/8eebbf93b54b509468d60b5fc2e135da55a815d3))
+* **deps:** update dependency kubernetes-sigs/agent-sandbox to v1.0.6 ([45bfce9](https://github.com/mogenius/agent-sandbox-chart/commit/45bfce9e118c5f3fd4e0505431fef49ca9f0d1ed))
+* **deps:** update ghcr.io/anomalyco/opencode docker tag to v2.0.26 ([e16630a](https://github.com/mogenius/agent-sandbox-chart/commit/e16630ad3e0df33107a8bf337a29791ed7005a8a))
+* **deps:** update ghcr.io/anomalyco/opencode docker tag to v2.0.27 ([b843de9](https://github.com/mogenius/agent-sandbox-chart/commit/b843de98c43a0188cbc7db1c414c2abf1fb85fbf))
+
 ## [1.2.1](https://github.com/mogenius/agent-sandbox-chart/compare/1.2.0...1.2.1) (2026-09-28)
 
 
