@@ -7,17 +7,44 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^hack/agent-sandbox-version$/"],
-      "matchStrings": ["(?<currentValue>v[^\\n]+)"],
+      "managerFilePatterns": [
+        "/^hack/agent-sandbox-version$/"
+      ],
+      "matchStrings": [
+        "(?<currentValue>v[^\\n]+)"
+      ],
       "depNameTemplate": "kubernetes-sigs/agent-sandbox",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "opencode version of the sandbox-opencode image (2.x API; the Sandbox Agent Hub speaks it)",
+      "managerFilePatterns": [
+        "/^images/sandbox-opencode/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG OPENCODE_VERSION=(?<currentValue>[0-9][^\\s]*)"
+      ],
+      "depNameTemplate": "ghcr.io/anomalyco/opencode",
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
     {
-      "matchPackageNames": ["kubernetes-sigs/agent-sandbox"],
+      "description": "opencode 3.x may change the HTTP API the Sandbox Agent Hub uses: upgrade by hand",
+      "matchDepNames": [
+        "ghcr.io/anomalyco/opencode"
+      ],
+      "allowedVersions": "<3.0.0"
+    },
+    {
+      "matchPackageNames": [
+        "kubernetes-sigs/agent-sandbox"
+      ],
       "postUpgradeTasks": {
-        "commands": ["hack/update-upstream.sh {{newVersion}}"],
+        "commands": [
+          "hack/update-upstream.sh {{newVersion}}"
+        ],
         "fileFilters": [
           "helm/mogenius-agent-sandbox/crds/**",
           "helm/mogenius-agent-sandbox/Chart.yaml"
@@ -26,18 +53,31 @@
       }
     },
     {
-      "matchManagers": ["!github-actions"],
-      "matchUpdateTypes": ["patch", "digest"],
+      "matchManagers": [
+        "!github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "digest"
+      ],
       "semanticCommitType": "fix"
     },
     {
-      "matchManagers": ["!github-actions"],
-      "matchUpdateTypes": ["minor"],
+      "matchManagers": [
+        "!github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
       "semanticCommitType": "feat"
     },
     {
-      "matchManagers": ["!github-actions"],
-      "matchUpdateTypes": ["major"],
+      "matchManagers": [
+        "!github-actions"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "semanticCommitType": "feat",
       "commitBody": "BREAKING CHANGE: Major update of {{depName}} to {{newVersion}}"
     }

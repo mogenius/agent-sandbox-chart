@@ -177,8 +177,12 @@ sandboxes:
         runAsNonRoot: true
         allowPrivilegeEscalation: false
       restartPolicy: OnFailure
+      # Size of a memory-backed /dev/shm; empty = the runtime's 64 MB. Browsers
+      # need more (see the platform-test profile).
+      shmSizeLimit: ""
       # Free-form additions merged into the pod spec (volumes, initContainers,
-      # nodeSelector, tolerations …) and the container (volumeMounts …).
+      # nodeSelector, tolerations …) and the container (volumeMounts …);
+      # volumes and volumeMounts are appended to the modelled ones.
       podSpecExtra: {}
       containerExtra: {}
       warmPool:
@@ -188,12 +192,15 @@ sandboxes:
         # template changes.
         updateStrategy: OnReplenish
 
-    # Example second profile: an opencode server (https://opencode.ai) as an
-    # agent-as-a-service. Disabled by default; it reads ANTHROPIC_API_KEY from
-    # the same `sandbox-provider-keys` Secret the Sandboxes page manages.
+    # Second profile: an opencode server (https://opencode.ai) as an
+    # agent-as-a-service, used by the mogenius Sandbox Agent Hub. Disabled by
+    # default; it reads ANTHROPIC_API_KEY from the same `sandbox-provider-keys`
+    # Secret the Sandboxes page manages. The image (images/sandbox-opencode)
+    # adds git, Node.js, Python and Go to the upstream opencode 2.x binary, so
+    # an agent can clone, build and test repositories.
     opencode:
       enabled: false
-      image: ghcr.io/anomalyco/opencode:2.0.27@sha256:5af160289e3c7417910c076b74385155a9c81bc6ec6d5ba0cdde203d01b867a3
+      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-opencode:1.2.1
       imagePullPolicy: IfNotPresent
       containerName: opencode
       command: []
@@ -211,7 +218,10 @@ sandboxes:
       port: 8888
       probes:
         enabled: true
-        path: /global/health
+        # opencode 2.x serves its API under /api; /global/health is gone.
+        # With OPENCODE_SERVER_PASSWORD set the API wants basic auth, which an
+        # httpGet probe cannot send: disable the probes in that case.
+        path: /api/info
       resources:
         requests:
           cpu: 500m
@@ -244,4 +254,76 @@ sandboxes:
       containerExtra: {}
       warmPool:
         replicas: 0
+        updateStrategy: OnReplenish
+
+    # Third profile: the default sandbox plus a headless browser, for agents
+    # that test the mogenius platform through its API, UI and MCP server (used
+    # by mo-platform-tests). Disabled by default. The image
+    # (images/sandbox-platform-test) adds Playwright MCP (`playwright-mcp`) and
+    # Chromium to sandbox-default; it holds no MCP configuration, the agent
+    # gets its servers per run. Besides the provider keys it reads the
+    # agent's mogenius API key, `mogenius-api-key` in the same
+    # `sandbox-provider-keys` Secret; only this profile gets it.
+    platform-test:
+      enabled: false
+      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-platform-test:1.2.1
+      imagePullPolicy: IfNotPresent
+      containerName: sandbox
+      command: []
+      args: []
+      env:
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sandbox-provider-keys
+              key: anthropic-api-key
+              optional: true
+        - name: CLAUDE_CODE_OAUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: sandbox-provider-keys
+              key: claude-code-oauth-token
+              optional: true
+        - name: MOGENIUS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sandbox-provider-keys
+              key: mogenius-api-key
+              optional: true
+      port: 8080
+      probes:
+        enabled: true
+        path: /healthz
+      # Chromium needs more memory than the default sandbox.
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+          ephemeral-storage: 512Mi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+      storage:
+        enabled: true
+        size: 1Gi
+        storageClassName: ""
+        mountPath: /home/coder/project
+      runtimeClassName: ""
+      # Chromium runs as uid 1000 without privileges and without its own
+      # sandbox, which needs user namespaces the default seccomp profile
+      # forbids (see "The platform-test image" in the README).
+      podSecurityContext:
+        fsGroup: 1000
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+      restartPolicy: OnFailure
+      # Chromium crashes on larger pages with the default 64 MB /dev/shm.
+      shmSizeLimit: 1Gi
+      podSpecExtra: {}
+      containerExtra: {}
+      warmPool:
+        replicas: 1
         updateStrategy: OnReplenish

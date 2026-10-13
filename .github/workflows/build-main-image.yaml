@@ -19,3 +19,27 @@ jobs:
       dockerfile: images/sandbox-default/Dockerfile
       architectures: amd64,arm64
       push_latest: false
+
+  build-sandbox-opencode:
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@157683e012c4ba4e22e86fe4e00ddf295215c483 # v1.9.2
+    secrets: inherit
+    with:
+      version: "main"
+      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-opencode
+      dockerfile: images/sandbox-opencode/Dockerfile
+      architectures: amd64,arm64
+      push_latest: false
+
+  # Built on the sandbox-default image of this push.
+  build-sandbox-platform-test:
+    needs: [build-sandbox-default]
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@157683e012c4ba4e22e86fe4e00ddf295215c483 # v1.9.2
+    secrets: inherit
+    with:
+      version: "main"
+      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-platform-test
+      dockerfile: images/sandbox-platform-test/Dockerfile
+      architectures: amd64,arm64
+      push_latest: false
+      build_args: |
+        BASE_VERSION=main

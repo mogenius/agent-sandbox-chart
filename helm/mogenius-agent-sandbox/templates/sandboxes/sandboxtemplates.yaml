@@ -10,6 +10,23 @@ profile's flat values (image, port, probes, storage, …) plus free-form
 {{- $rtc := default $sb.runtimeClassName $p.runtimeClassName }}
 {{- $containerName := default "sandbox" $p.containerName }}
 {{- $port := int (default 0 $p.port) }}
+{{- /* Volumes and mounts from the modelled values come first, the ones from the
+extras are appended, so both can be used without duplicate keys. */}}
+{{- $mounts := list }}
+{{- if and $p.storage $p.storage.enabled $p.storage.mountPath }}
+{{- $mounts = append $mounts (dict "name" "workspace" "mountPath" $p.storage.mountPath) }}
+{{- end }}
+{{- $volumes := list }}
+{{- with $p.shmSizeLimit }}
+{{- $mounts = append $mounts (dict "name" "dshm" "mountPath" "/dev/shm") }}
+{{- $volumes = append $volumes (dict "name" "dshm" "emptyDir" (dict "medium" "Memory" "sizeLimit" .)) }}
+{{- end }}
+{{- $containerExtra := default dict $p.containerExtra }}
+{{- $podSpecExtra := default dict $p.podSpecExtra }}
+{{- $mounts = concat $mounts (default list $containerExtra.volumeMounts) }}
+{{- $volumes = concat $volumes (default list $podSpecExtra.volumes) }}
+{{- $containerExtra = omit $containerExtra "volumeMounts" }}
+{{- $podSpecExtra = omit $podSpecExtra "volumes" }}
 ---
 apiVersion: extensions.agents.x-k8s.io/v1beta1
 kind: SandboxTemplate
@@ -76,16 +93,19 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if and $p.storage $p.storage.enabled $p.storage.mountPath }}
+          {{- with $mounts }}
           volumeMounts:
-            - name: workspace
-              mountPath: {{ $p.storage.mountPath }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with $p.containerExtra }}
+          {{- with $containerExtra }}
           {{- toYaml . | nindent 10 }}
           {{- end }}
       restartPolicy: {{ default "OnFailure" $p.restartPolicy }}
-      {{- with $p.podSpecExtra }}
+      {{- with $volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $podSpecExtra }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
   service: {{ $sb.service }}

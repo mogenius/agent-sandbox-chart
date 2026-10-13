@@ -1,0 +1,40 @@
+name: images
+
+on:
+  pull_request:
+    paths: ["images/**", ".github/workflows/images.yaml"]
+
+permissions:
+  contents: read
+
+jobs:
+  # Builds the sandbox images and checks the tools agents rely on are there.
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [sandbox-default, sandbox-opencode, sandbox-platform-test]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # sandbox-platform-test is built on the sandbox-default of this pull request.
+      - if: matrix.image == 'sandbox-platform-test'
+        run: docker build -t ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:ci images/sandbox-default
+      - run: docker build --build-arg BASE_VERSION=ci -t ${{ matrix.image }}:ci images/${{ matrix.image }}
+      - name: tools
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.image }}" = sandbox-platform-test ]; then
+            docker run --rm --entrypoint sh sandbox-platform-test:ci -c 'id -u && claude --version && playwright-mcp --version'
+            # MCP handshake plus one page load, offline and as uid 1000: Chromium starts without its own sandbox.
+            {
+              echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}'
+              echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+              echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"browser_navigate","arguments":{"url":"data:text/html,<title>handshake-ok</title>"}}}'
+              sleep 30
+            } | timeout 60 docker run --rm -i --network none --entrypoint playwright-mcp sandbox-platform-test:ci --headless --no-sandbox --isolated > mcp.out || true
+            grep -q 'Page Title: handshake-ok' mcp.out || { cat mcp.out; exit 1; }
+          elif [ "${{ matrix.image }}" = sandbox-opencode ]; then
+            docker run --rm --entrypoint sh sandbox-opencode:ci -c 'id -u && git --version && node --version && python3 --version && go version && opencode --version'
+          else
+            docker run --rm --entrypoint sh sandbox-default:ci -c 'id -u && git --version && node --version && python3 --version && claude --version'
+          fi

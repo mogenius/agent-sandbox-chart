@@ -20,8 +20,32 @@ jobs:
       architectures: amd64,arm64
       push_latest: true
 
-  helm-publish:
+  build-image-opencode:
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@157683e012c4ba4e22e86fe4e00ddf295215c483 # v1.9.2
+    secrets: inherit
+    with:
+      version: ${{ github.ref_name }}
+      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-opencode
+      dockerfile: images/sandbox-opencode/Dockerfile
+      architectures: amd64,arm64
+      push_latest: true
+
+  # Built on the sandbox-default image of the same release.
+  build-image-platform-test:
     needs: [build-image]
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@157683e012c4ba4e22e86fe4e00ddf295215c483 # v1.9.2
+    secrets: inherit
+    with:
+      version: ${{ github.ref_name }}
+      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-platform-test
+      dockerfile: images/sandbox-platform-test/Dockerfile
+      architectures: amd64,arm64
+      push_latest: true
+      build_args: |
+        BASE_VERSION=${{ github.ref_name }}
+
+  helm-publish:
+    needs: [build-image, build-image-opencode, build-image-platform-test]
     uses: mogenius/github-actions/.github/workflows/helm-publish.yml@157683e012c4ba4e22e86fe4e00ddf295215c483 # v1.9.2
     secrets:
       APP_ID: ${{ secrets.RELEASE_APP_ID }}
@@ -32,9 +56,11 @@ jobs:
       channel: public
       pre-package: |
         sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-default:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:${{ github.ref_name }}|g" values.yaml
+        sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-opencode:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-opencode:${{ github.ref_name }}|g" values.yaml
+        sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-platform-test:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-platform-test:${{ github.ref_name }}|g" values.yaml
 
   helm-oci:
-    needs: [build-image]
+    needs: [build-image, build-image-opencode, build-image-platform-test]
     runs-on: self-hosted
     permissions:
       contents: read
@@ -65,6 +91,8 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-default:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:${VERSION}|g" helm/mogenius-agent-sandbox/values.yaml
+          sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-opencode:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-opencode:${VERSION}|g" helm/mogenius-agent-sandbox/values.yaml
+          sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-platform-test:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-platform-test:${VERSION}|g" helm/mogenius-agent-sandbox/values.yaml
 
           helm package -d /tmp/ ./helm/mogenius-agent-sandbox --version "${VERSION}"
 
@@ -79,7 +107,7 @@ jobs:
           cosign sign --yes "ghcr.io/${GITHUB_REPOSITORY_OWNER}/helm-charts/${HELMNAME}@${CHART_DIGEST}"
 
   update-docs:
-    needs: [build-image]
+    needs: [build-image, build-image-opencode, build-image-platform-test]
     runs-on: self-hosted
     permissions:
       contents: write
@@ -109,6 +137,8 @@ jobs:
         run: |
           sed -i "s/^version:.*/version: ${VERSION}/" helm/mogenius-agent-sandbox/Chart.yaml
           sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-default:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:${VERSION}|g" helm/mogenius-agent-sandbox/values.yaml
+          sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-opencode:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-opencode:${VERSION}|g" helm/mogenius-agent-sandbox/values.yaml
+          sed -i "s|ghcr\.io/mogenius/agent-sandbox-chart/sandbox-platform-test:[^ ]*|ghcr.io/mogenius/agent-sandbox-chart/sandbox-platform-test:${VERSION}|g" helm/mogenius-agent-sandbox/values.yaml
           git add helm/mogenius-agent-sandbox/Chart.yaml helm/mogenius-agent-sandbox/values.yaml
 
       - name: Run helm-docs
