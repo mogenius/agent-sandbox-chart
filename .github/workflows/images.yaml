@@ -34,7 +34,7 @@ jobs:
             } | timeout 60 docker run --rm -i --network none --entrypoint playwright-mcp sandbox-platform-test:ci --headless --no-sandbox --isolated > mcp.out || true
             grep -q 'Page Title: handshake-ok' mcp.out || { cat mcp.out; exit 1; }
           elif [ "${{ matrix.image }}" = sandbox-opencode ]; then
-            docker run --rm --entrypoint sh sandbox-opencode:ci -c 'id -u && git --version && node --version && python3 --version && go version && opencode --version'
+            docker run --rm --entrypoint sh sandbox-opencode:ci -c 'id -u && git --version && node --version && python3 --version && go version && opencode --version && claude --version'
           else
             docker run --rm --entrypoint sh sandbox-default:ci -c 'id -u && git --version && node --version && python3 --version && claude --version'
           fi

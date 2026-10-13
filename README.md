@@ -10,7 +10,7 @@ helm/mogenius-agent-sandbox/    the chart: kubernetes-sigs/agent-sandbox control
 images/sandbox-default/         Dockerfile of the default sandbox image
                                 (code-server, Python 3, uv, Node.js, Claude Code)
 images/sandbox-opencode/        Dockerfile of the opencode profile's image
-                                (opencode 2.x server, git, Node.js, Python, Go)
+                                (opencode 2.x server, Claude Code, git, Node.js, Python, Go)
 images/sandbox-platform-test/   Dockerfile of the platform-test profile's image
                                 (sandbox-default plus Playwright MCP and Chromium)
 hack/                           update-upstream, upgrade-crds, publish-chartmuseum
@@ -108,7 +108,9 @@ gateway and VS Code Remote-SSH.
 `images/sandbox-opencode`: the opencode 2.x binary from `ghcr.io/anomalyco/opencode` on
 Alpine, plus git, Node.js with `pnpm`, `typescript` and `tsx`, Python 3, Go and build tools.
 The upstream image has none of these, so an agent in it could neither clone nor build or test a
-repository. opencode 2.x ships as a musl binary only, which is why this image stays on Alpine
+repository. Claude Code is installed as in the default image (it runs on musl with the system
+ripgrep, `USE_BUILTIN_RIPGREP=0`), so tools that run `claude -p` in any sandbox — the report agent of
+mo-platform-tests — work here too; it adds about 360 MB to the image. opencode 2.x ships as a musl binary only, which is why this image stays on Alpine
 instead of extending the Debian-based default image. Runs as uid 1000 with
 `HOME=/workspace` (the profile's volume) and serves the opencode API on 8888; the profile's
 probes use `/api/info`. Renovate tracks the opencode version and keeps it on 2.x, the API the
