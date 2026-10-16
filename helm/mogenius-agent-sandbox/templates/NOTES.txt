@@ -2,11 +2,9 @@ mogenius-agent-sandbox {{ .Chart.Version }} (agent-sandbox {{ include "mogenius-
 
 Controller:   {{ .Release.Namespace }}/agent-sandbox-controller
 Sandboxes in: {{ include "mogenius-agent-sandbox.sandboxNamespace" . }}
-{{- range $name, $p := .Values.sandboxes.profiles }}
-{{- if $p.enabled }}
-Profile "{{ $name }}": image {{ $p.image }}, warm pool {{ default 0 $p.warmPool.replicas }}{{ with (default $.Values.sandboxes.runtimeClassName $p.runtimeClassName) }}, runtimeClass {{ . }}{{ end }}
-{{- end }}
-{{- end }}
+{{- $t := .Values.sandboxes.template }}
+{{- $wp := default (dict) .Values.sandboxes.warmPool }}
+Template "{{ default "default" $t.name }}": image {{ $t.image }}, warm pool {{ default 0 $wp.replicas }}{{ with (default .Values.sandboxes.runtimeClassName $t.runtimeClassName) }}, runtimeClass {{ . }}{{ end }}
 
 Check the pool:
   kubectl -n {{ include "mogenius-agent-sandbox.sandboxNamespace" . }} get sandboxwarmpool,sandboxes,pods

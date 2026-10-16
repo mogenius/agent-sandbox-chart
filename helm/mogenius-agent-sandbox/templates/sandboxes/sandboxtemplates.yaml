@@ -1,33 +1,34 @@
 {{- /*
-One SandboxTemplate per enabled profile. The pod spec is assembled from the
-profile's flat values (image, port, probes, storage, …) plus free-form
-`podSpecExtra` / `containerExtra` for anything not modelled.
+The default SandboxTemplate. The pod spec is assembled from the template's flat
+values (image, port, probes, storage, …) plus free-form podSpecExtra /
+containerExtra for anything not modelled. Additional templates are managed as
+standalone objects by the platform UI (MOG-4749 / MOG-4756), not here.
 */ -}}
 {{- $root := . }}
 {{- $sb := .Values.sandboxes }}
-{{- range $name, $p := .Values.sandboxes.profiles }}
-{{- if $p.enabled }}
-{{- $rtc := default $sb.runtimeClassName $p.runtimeClassName }}
-{{- $containerName := default "sandbox" $p.containerName }}
-{{- $port := int (default 0 $p.port) }}
+{{- $t := $sb.template }}
+{{- $np := $sb.networkPolicy }}
+{{- $name := default "default" $t.name }}
+{{- $rtc := default $sb.runtimeClassName $t.runtimeClassName }}
+{{- $containerName := default "sandbox" $t.containerName }}
+{{- $port := int (default 0 $t.port) }}
 {{- /* Volumes and mounts from the modelled values come first, the ones from the
 extras are appended, so both can be used without duplicate keys. */}}
 {{- $mounts := list }}
-{{- if and $p.storage $p.storage.enabled $p.storage.mountPath }}
-{{- $mounts = append $mounts (dict "name" "workspace" "mountPath" $p.storage.mountPath) }}
+{{- if and $t.storage $t.storage.enabled $t.storage.mountPath }}
+{{- $mounts = append $mounts (dict "name" "workspace" "mountPath" $t.storage.mountPath) }}
 {{- end }}
 {{- $volumes := list }}
-{{- with $p.shmSizeLimit }}
+{{- with $t.shmSizeLimit }}
 {{- $mounts = append $mounts (dict "name" "dshm" "mountPath" "/dev/shm") }}
 {{- $volumes = append $volumes (dict "name" "dshm" "emptyDir" (dict "medium" "Memory" "sizeLimit" .)) }}
 {{- end }}
-{{- $containerExtra := default dict $p.containerExtra }}
-{{- $podSpecExtra := default dict $p.podSpecExtra }}
+{{- $containerExtra := default dict $t.containerExtra }}
+{{- $podSpecExtra := default dict $t.podSpecExtra }}
 {{- $mounts = concat $mounts (default list $containerExtra.volumeMounts) }}
 {{- $volumes = concat $volumes (default list $podSpecExtra.volumes) }}
 {{- $containerExtra = omit $containerExtra "volumeMounts" }}
 {{- $podSpecExtra = omit $podSpecExtra "volumes" }}
----
 apiVersion: extensions.agents.x-k8s.io/v1beta1
 kind: SandboxTemplate
 metadata:
@@ -44,25 +45,25 @@ spec:
       {{- end }}
       serviceAccountName: {{ $sb.serviceAccount.name }}
       automountServiceAccountToken: false
-      {{- with $p.podSecurityContext }}
+      {{- with $t.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: {{ $containerName }}
-          image: {{ required (printf "sandboxes.profiles.%s.image is required" $name) $p.image }}
-          {{- with $p.imagePullPolicy }}
+          image: {{ required "sandboxes.template.image is required" $t.image }}
+          {{- with $t.imagePullPolicy }}
           imagePullPolicy: {{ . }}
           {{- end }}
-          {{- with $p.command }}
+          {{- with $t.command }}
           command:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with $p.args }}
+          {{- with $t.args }}
           args:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with $p.env }}
+          {{- with $t.env }}
           env:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -70,26 +71,26 @@ spec:
           ports:
             - containerPort: {{ $port }}
               name: http
-          {{- if and $p.probes $p.probes.enabled }}
+          {{- if and $t.probes $t.probes.enabled }}
           readinessProbe:
             httpGet:
-              path: {{ default "/" $p.probes.path | quote }}
+              path: {{ default "/" $t.probes.path | quote }}
               port: {{ $port }}
             initialDelaySeconds: 0
             periodSeconds: 1
           livenessProbe:
             httpGet:
-              path: {{ default "/" $p.probes.path | quote }}
+              path: {{ default "/" $t.probes.path | quote }}
               port: {{ $port }}
             initialDelaySeconds: 2
             periodSeconds: 10
           {{- end }}
           {{- end }}
-          {{- with $p.securityContext }}
+          {{- with $t.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with $p.resources }}
+          {{- with $t.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -100,7 +101,7 @@ spec:
           {{- with $containerExtra }}
           {{- toYaml . | nindent 10 }}
           {{- end }}
-      restartPolicy: {{ default "OnFailure" $p.restartPolicy }}
+      restartPolicy: {{ default "OnFailure" $t.restartPolicy }}
       {{- with $volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
@@ -109,49 +110,26 @@ spec:
       {{- toYaml . | nindent 6 }}
       {{- end }}
   service: {{ $sb.service }}
-  {{- if $sb.networkPolicy.managed }}
+  {{- if $np.managed }}
   networkPolicyManagement: Managed
-  {{- if include "mogenius-agent-sandbox.explicitNetworkPolicy" $root }}
+  {{- if $np.explicit }}
   networkPolicy:
-    {{- with $sb.networkPolicy.ingressFrom }}
-    ingress:
-      - from:
-          {{- toYaml . | nindent 10 }}
-    {{- end }}
-    egress:
-      - to:
-          - ipBlock:
-              cidr: 0.0.0.0/0
-              except:
-                {{- range $sb.networkPolicy.blockedCidrs }}
-                - {{ . }}
-                {{- end }}
-                {{- range $sb.networkPolicy.additionalBlockedCidrs }}
-                - {{ . }}
-                {{- end }}
-          - ipBlock:
-              cidr: ::/0
-              except:
-                {{- range $sb.networkPolicy.blockedCidrsV6 }}
-                - {{ . }}
-                {{- end }}
+    {{- include "mogenius-agent-sandbox.sandboxNetworkPolicy" $root | trim | nindent 4 }}
   {{- end }}
   {{- else }}
   networkPolicyManagement: Disabled
   {{- end }}
-  {{- if and $p.storage $p.storage.enabled }}
+  {{- if and $t.storage $t.storage.enabled }}
   volumeClaimTemplatesPolicy: Overrides
   volumeClaimTemplates:
     - metadata:
         name: workspace
       spec:
         accessModes: [ReadWriteOnce]
-        {{- with $p.storage.storageClassName }}
+        {{- with $t.storage.storageClassName }}
         storageClassName: {{ . }}
         {{- end }}
         resources:
           requests:
-            storage: {{ default "1Gi" $p.storage.size }}
+            storage: {{ default "1Gi" $t.storage.size }}
   {{- end }}
-{{- end }}
-{{- end }}

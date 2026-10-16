@@ -59,11 +59,56 @@ Namespace the sandbox pods live in.
 {{- end }}
 
 {{/*
-Whether an explicit NetworkPolicy must be rendered into the template: only when
-the operator adds ingress peers or blocks extra CIDRs. Otherwise the controller's
-built-in default policy applies, which is what upstream tests against.
+The NetworkPolicy spec body (ingress + egress) rendered into a managed
+SandboxTemplate when networkPolicy.explicit is set. Egress allows the internet
+minus the toggled blocks (RFC1918, the metadata endpoint, optionally the
+apiserver, plus any additionalBlockedCidrs) and keeps DNS reachable.
 */}}
-{{- define "mogenius-agent-sandbox.explicitNetworkPolicy" -}}
+{{- define "mogenius-agent-sandbox.sandboxNetworkPolicy" -}}
 {{- $np := .Values.sandboxes.networkPolicy -}}
-{{- if and $np.managed (or $np.ingressFrom $np.additionalBlockedCidrs) -}}true{{- end -}}
+{{- $except := list -}}
+{{- if $np.blockRfc1918 -}}{{- $except = concat $except $np.rfc1918Cidrs -}}{{- end -}}
+{{- if $np.blockMetadataEndpoint -}}{{- $except = concat $except $np.metadataCidrs -}}{{- end -}}
+{{- if $np.blockApiServer -}}{{- $except = concat $except $np.apiServerCidrs -}}{{- end -}}
+{{- if $np.additionalBlockedCidrs -}}{{- $except = concat $except $np.additionalBlockedCidrs -}}{{- end -}}
+{{- /*
+Scope the policy to Egress unless ingress peers are configured, so enabling it
+only tightens egress and leaves the pods' ingress exactly as it was (an egress-
+only policy with no policyTypes would otherwise implicitly deny all ingress).
+*/ -}}
+policyTypes:
+  {{- with $np.ingressFrom }}
+  - Ingress
+  {{- end }}
+  - Egress
+{{- with $np.ingressFrom }}
+ingress:
+  - from:
+      {{- toYaml . | nindent 6 }}
+{{- end }}
+egress:
+  {{- if $np.allowDns }}
+  - ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+  {{- end }}
+  - to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+          {{- with $except }}
+          except:
+            {{- range . }}
+            - {{ . }}
+            {{- end }}
+          {{- end }}
+      {{- with $np.blockedCidrsV6 }}
+      - ipBlock:
+          cidr: ::/0
+          except:
+            {{- range . }}
+            - {{ . }}
+            {{- end }}
+      {{- end }}
 {{- end }}

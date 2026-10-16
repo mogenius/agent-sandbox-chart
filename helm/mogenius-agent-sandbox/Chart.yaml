@@ -3,8 +3,8 @@ name: mogenius-agent-sandbox
 description: >-
   Complete agent-sandbox setup for a mogenius cluster: the kubernetes-sigs/agent-sandbox
   controller with extensions (SandboxTemplate, SandboxClaim, SandboxWarmPool), plus a
-  sandbox namespace, a locked-down runtime ServiceAccount and configurable sandbox
-  profiles, each with its own SandboxTemplate and warm pool.
+  sandbox namespace, a locked-down runtime ServiceAccount, the default SandboxTemplate and
+  warm pool the SDK claims from, and a per-sandbox NetworkPolicy.
 type: application
 # Chart version — bump on every change to templates or values.
 version: 1.2.1
