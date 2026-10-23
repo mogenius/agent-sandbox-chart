@@ -1,6 +1,6 @@
 # mogenius-agent-sandbox
 
-![Version: 1.3.0](https://img.shields.io/badge/Version-1.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.0.8](https://img.shields.io/badge/AppVersion-v1.0.8-informational?style=flat-square)
+![Version: 1.3.1](https://img.shields.io/badge/Version-1.3.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.0.8](https://img.shields.io/badge/AppVersion-v1.0.8-informational?style=flat-square)
 
 Complete agent-sandbox setup for a mogenius cluster: the kubernetes-sigs/agent-sandbox controller with extensions (SandboxTemplate, SandboxClaim, SandboxWarmPool), plus a sandbox namespace, a locked-down runtime ServiceAccount, the default SandboxTemplate and warm pool the SDK claims from, and a per-sandbox NetworkPolicy.
 
@@ -84,7 +84,7 @@ Kubernetes: `>=1.25.0-0`
 | sandboxes.template.env[1].valueFrom.secretKeyRef.key | string | `"claude-code-oauth-token"` |  |
 | sandboxes.template.env[1].valueFrom.secretKeyRef.name | string | `"sandbox-provider-keys"` |  |
 | sandboxes.template.env[1].valueFrom.secretKeyRef.optional | bool | `true` |  |
-| sandboxes.template.image | string | `"ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:1.3.0"` |  |
+| sandboxes.template.image | string | `"ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:1.3.1"` |  |
 | sandboxes.template.imagePullPolicy | string | `"IfNotPresent"` |  |
 | sandboxes.template.name | string | `"default"` |  |
 | sandboxes.template.podSecurityContext.fsGroup | int | `1000` |  |

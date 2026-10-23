@@ -145,7 +145,7 @@ sandboxes:
     # exists yet). Ships python3 and a shell. Replace with the mogenius default
     # sandbox image once published (see MOG-4695). The release workflow pins this
     # tag to the chart version on publish.
-    image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:1.3.0
+    image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:1.3.1
     imagePullPolicy: IfNotPresent
     containerName: sandbox
     # Empty = the image's entrypoint. For images without a long-running
