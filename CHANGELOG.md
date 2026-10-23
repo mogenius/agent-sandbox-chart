@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/mogenius/agent-sandbox-chart/compare/1.3.0...1.3.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** update ghcr.io/anomalyco/opencode docker tag to v2.1.4 ([af4e89d](https://github.com/mogenius/agent-sandbox-chart/commit/af4e89d1d4ca56a8a982bff1e02ee171520e64bd))
+* **sandboxtemplate:** set CRD-defaulted fields explicitly to avoid Argo CD drift ([ac0d93e](https://github.com/mogenius/agent-sandbox-chart/commit/ac0d93ef0dd3648a333db9e339d38ab1b92706a9))
+
 ## [1.3.0](https://github.com/mogenius/agent-sandbox-chart/compare/1.2.1...1.3.0) (2026-10-23)
 
 
