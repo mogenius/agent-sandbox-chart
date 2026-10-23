@@ -15,7 +15,7 @@
 # (which needs user namespaces most clusters' seccomp profile forbids):
 # Playwright MCP launches the bundled Chromium with chromiumSandbox off, and
 # callers pass `--no-sandbox` as well so a changed default cannot break it.
-ARG BASE_VERSION=1.2.1
+ARG BASE_VERSION=1.3.0
 FROM ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:${BASE_VERSION}
 
 USER root
