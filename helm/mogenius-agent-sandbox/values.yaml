@@ -3,15 +3,16 @@
 # Two halves:
 #   controller.*  the kubernetes-sigs/agent-sandbox controller (with extensions),
 #                 installed into the release namespace — upstream expects
-#                 `agent-sandbox-system`, the blueprint installs it there.
-#   sandboxes.*   the sandbox namespace, the runtime ServiceAccount and one or
-#                 more *profiles*. A profile renders a SandboxTemplate and,
-#                 when `warmPool.replicas > 0`, a SandboxWarmPool. The mogenius
-#                 Sandbox SDK claims from the `default` profile unless told
-#                 otherwise; the platform UI edits these values.
+#                 `agent-sandbox-system`.
+#   sandboxes.*   the sandbox namespace, the runtime ServiceAccount, the default
+#                 SandboxTemplate (+ its warm pool) the SDK claims from, and the
+#                 per-sandbox NetworkPolicy. Additional templates and pools are
+#                 managed as standalone objects by the platform UI (MOG-4749 /
+#                 MOG-4756), not by this chart.
 #
 # The security posture of the sandbox pods: a ServiceAccount with no RBAC and no
-# projected token, egress to the internet only, no RFC1918, and an optional
+# projected token, egress to the internet only (RFC1918, the cloud metadata
+# endpoint and — per cluster — the apiserver denied), and an optional
 # RuntimeClass (gVisor) where the cluster has one.
 
 controller:
@@ -23,7 +24,7 @@ controller:
     pullPolicy: IfNotPresent
   replicaCount: 1
   # Extensions (SandboxTemplate / SandboxClaim / SandboxWarmPool) are what the
-  # profiles below and the SDK rely on. Leave enabled.
+  # template below and the SDK rely on. Leave enabled.
   extensions: true
   leaderElect: true
   # Additional controller flags, passed verbatim (e.g. "--zap-log-level=debug").
@@ -77,9 +78,9 @@ sandboxes:
     name: sandbox-runtime
     create: true
     annotations: {}
-  # RuntimeClass for all profiles (e.g. "gvisor" on GKE Sandbox). Empty = none —
-  # Docker Desktop and kind have no RuntimeClass, a pod asking for one stays
-  # Pending. Profiles may override with their own `runtimeClassName`.
+  # RuntimeClass for the sandbox pods (e.g. "gvisor" on GKE Sandbox). Empty =
+  # none — Docker Desktop and kind have no RuntimeClass, a pod asking for one
+  # stays Pending. `template.runtimeClassName` overrides this.
   runtimeClassName: ""
   # Headless Service per sandbox (`<sandbox>.<namespace>.svc`). Needed by the
   # upstream router and handy for in-cluster access; the mogenius operator does
@@ -87,243 +88,130 @@ sandboxes:
   service: true
   networkPolicy:
     # Managed: the controller creates a NetworkPolicy per sandbox from the
-    # template. Default rule set (when neither ingressFrom nor
-    # additionalBlockedCidrs is set): internet egress allowed, RFC1918 and
-    # link-local denied, ingress only from the upstream router pods.
+    # template's spec.networkPolicy.
     managed: true
-    # Extra ingress peers, e.g. a router or gateway running elsewhere:
+    # Render an explicit egress policy from the toggles below into the template,
+    # instead of leaning on the controller's built-in default. Turn off to fall
+    # back to that default (what upstream tests against).
+    explicit: true
+    # Ingress peers, e.g. a router or gateway running elsewhere. Empty keeps the
+    # controller's default peer (sandbox-router pods in agent-sandbox-system):
     # - namespaceSelector:
     #     matchLabels: { kubernetes.io/metadata.name: sandbox-router }
     #   podSelector:
     #     matchLabels: { app.kubernetes.io/name: sandbox-router }
     ingressFrom: []
-    # Egress denies these on top of the internet-only default.
-    blockedCidrs:
+    # Keep DNS (UDP/TCP 53) reachable. Cluster DNS usually sits inside the
+    # RFC1918 range blocked below, so without this name resolution would break.
+    allowDns: true
+    # Block the cloud metadata endpoint (169.254.169.254 / link-local) — the
+    # classic SSRF / credential-exfil vector.
+    blockMetadataEndpoint: true
+    # Block RFC1918 private ranges: no reaching cluster-internal services or
+    # other tenants' pods.
+    blockRfc1918: true
+    # Block the Kubernetes API server. Its ClusterIP is cluster-specific, so the
+    # chart cannot know it — leave off here and let the operator block it per
+    # cluster via additionalBlockedCidrs (or set apiServerCidrs and flip this on).
+    blockApiServer: false
+    # CIDRs the apiserver sits behind, blocked only when blockApiServer is true.
+    apiServerCidrs: []
+    # Extra CIDRs to deny on top of the toggles above. Per cluster: the operator
+    # puts the kube-apiserver ClusterIP here (on GKE it sits in e.g.
+    # 34.118.224.0/20, outside RFC1918, so it needs listing explicitly).
+    additionalBlockedCidrs: []
+    # The CIDR lists the toggles map to. Override only to tune the ranges.
+    rfc1918Cidrs:
       - 10.0.0.0/8
       - 172.16.0.0/12
       - 192.168.0.0/16
+    metadataCidrs:
       - 169.254.0.0/16
-    # Service CIDRs outside RFC1918 need listing explicitly — on GKE the
-    # kube-apiserver ClusterIP sits in 34.118.224.0/20 and would otherwise be
-    # reachable from a sandbox (the pod carries no token, but block the socket too).
-    additionalBlockedCidrs: []
-    # IPv6 egress: everything except ULA and link-local.
+    # IPv6 egress blocks (ULA + link-local), applied whenever an explicit policy
+    # is rendered.
     blockedCidrsV6:
       - fc00::/7
       - fe80::/10
 
-  # Profiles: one SandboxTemplate (+ optional warm pool) each. The key is the
-  # template name. `default` is what the SDK claims without further options.
-  profiles:
-    default:
+  # The default SandboxTemplate the SDK claims from, plus its warm pool. One
+  # template now: the multi-profile model moved to standalone SandboxTemplate and
+  # SandboxWarmPool objects the platform UI manages (MOG-4749 / MOG-4756).
+  template:
+    # Name of the SandboxTemplate (and its warm pool). The mogenius Sandbox SDK
+    # claims `default` unless told otherwise; the platform UI detects it as the
+    # chart-managed standard template by this name plus the Helm managed-by label.
+    name: default
+    # The upstream Python runtime image (staging registry, no production tag
+    # exists yet). Ships python3 and a shell. Replace with the mogenius default
+    # sandbox image once published (see MOG-4695). The release workflow pins this
+    # tag to the chart version on publish.
+    image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:1.2.1
+    imagePullPolicy: IfNotPresent
+    containerName: sandbox
+    # Empty = the image's entrypoint. For images without a long-running
+    # entrypoint use ["sleep", "infinity"].
+    command: []
+    args: []
+    # Provider credentials for Claude Code / the Anthropic SDK. The Sandboxes
+    # page writes the Secret `sandbox-provider-keys`; both keys are optional so
+    # sandboxes start without it. Env is read at pod start: the page recycles the
+    # warm pool after saving a key.
+    env:
+      - name: ANTHROPIC_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: sandbox-provider-keys
+            key: anthropic-api-key
+            optional: true
+      - name: CLAUDE_CODE_OAUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: sandbox-provider-keys
+            key: claude-code-oauth-token
+            optional: true
+    # The port the sandbox serves on. Set 0 to expose no port.
+    port: 8080
+    probes:
+      # HTTP probes against `port`. Disable for images without an HTTP server.
       enabled: true
-      # The upstream Python runtime image (staging registry, no production tag
-      # exists yet). Ships python3 and a shell. Replace with the mogenius
-      # default sandbox image once published (see MOG-4695).
-      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:1.2.1
-      imagePullPolicy: IfNotPresent
-      containerName: sandbox
-      # Empty = the image's entrypoint. For images without a long-running
-      # entrypoint use ["sleep", "infinity"].
-      command: []
-      args: []
-      # Provider credentials for Claude Code / the Anthropic SDK. The Sandboxes
-      # page writes the Secret `sandbox-provider-keys`; both keys are optional so
-      # sandboxes start without it. Env is read at pod start: the page recycles
-      # the warm pool after saving a key.
-      env:
-        - name: ANTHROPIC_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: sandbox-provider-keys
-              key: anthropic-api-key
-              optional: true
-        - name: CLAUDE_CODE_OAUTH_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: sandbox-provider-keys
-              key: claude-code-oauth-token
-              optional: true
-      # The port the sandbox serves on; 8888 is the fleet-wide convention of
-      # agent-sandbox tooling. Set 0 to expose no port.
-      port: 8080
-      probes:
-        # HTTP probes against `port`. Disable for images without an HTTP server.
-        enabled: true
-        path: /healthz
-      resources:
-        requests:
-          cpu: 250m
-          memory: 512Mi
-          ephemeral-storage: 512Mi
-        limits:
-          cpu: "2"
-          memory: 2Gi
-      storage:
-        # A PVC per sandbox, kept across stop/start. Empty mountPath = created
-        # but not mounted (the Python runtime manages /app itself).
-        enabled: true
-        size: 1Gi
-        storageClassName: ""
-        mountPath: /home/coder/project
-      # Per-profile RuntimeClass override; empty = sandboxes.runtimeClassName.
-      runtimeClassName: ""
-      # Pod- and container-level security contexts, passed through.
-      podSecurityContext:
-        fsGroup: 1000
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        allowPrivilegeEscalation: false
-      restartPolicy: OnFailure
-      # Size of a memory-backed /dev/shm; empty = the runtime's 64 MB. Browsers
-      # need more (see the platform-test profile).
-      shmSizeLimit: ""
-      # Free-form additions merged into the pod spec (volumes, initContainers,
-      # nodeSelector, tolerations …) and the container (volumeMounts …);
-      # volumes and volumeMounts are appended to the modelled ones.
-      podSpecExtra: {}
-      containerExtra: {}
-      warmPool:
-        # Pre-warmed sandboxes kept ready; 0 = no pool (claims start cold).
-        replicas: 1
-        # OnReplenish (default) or Recreate — how pool sandboxes pick up
-        # template changes.
-        updateStrategy: OnReplenish
-
-    # Second profile: an opencode server (https://opencode.ai) as an
-    # agent-as-a-service, used by the mogenius Sandbox Agent Hub. Disabled by
-    # default; it reads ANTHROPIC_API_KEY from the same `sandbox-provider-keys`
-    # Secret the Sandboxes page manages. The image (images/sandbox-opencode)
-    # adds git, Node.js, Python and Go to the upstream opencode 2.x binary, so
-    # an agent can clone, build and test repositories.
-    opencode:
-      enabled: false
-      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-opencode:1.2.1
-      imagePullPolicy: IfNotPresent
-      containerName: opencode
-      command: []
-      # The image's ENTRYPOINT is `opencode`; these are its arguments.
-      args: ["serve", "--hostname", "0.0.0.0", "--port", "8888"]
-      env:
-        - name: HOME
-          value: /workspace
-        - name: ANTHROPIC_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: sandbox-provider-keys
-              key: anthropic-api-key
-              optional: true
-      port: 8888
-      probes:
-        enabled: true
-        # opencode 2.x serves its API under /api; /global/health is gone.
-        # With OPENCODE_SERVER_PASSWORD set the API wants basic auth, which an
-        # httpGet probe cannot send: disable the probes in that case.
-        path: /api/info
-      resources:
-        requests:
-          cpu: 500m
-          memory: 1Gi
-          ephemeral-storage: 1Gi
-        limits:
-          cpu: "4"
-          memory: 4Gi
-      storage:
-        enabled: true
-        size: 5Gi
-        storageClassName: ""
-        mountPath: /workspace
-      runtimeClassName: ""
-      # The image declares no USER; pin a non-root uid and make the PVC
-      # group-writable for it.
-      podSecurityContext:
-        fsGroup: 1000
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop: ["ALL"]
-        seccompProfile:
-          type: RuntimeDefault
-      restartPolicy: OnFailure
-      podSpecExtra: {}
-      containerExtra: {}
-      warmPool:
-        replicas: 0
-        updateStrategy: OnReplenish
-
-    # Third profile: the default sandbox plus a headless browser, for agents
-    # that test the mogenius platform through its API, UI and MCP server (used
-    # by mo-platform-tests). Disabled by default. The image
-    # (images/sandbox-platform-test) adds Playwright MCP (`playwright-mcp`) and
-    # Chromium to sandbox-default; it holds no MCP configuration, the agent
-    # gets its servers per run. Besides the provider keys it reads the
-    # agent's mogenius API key, `mogenius-api-key` in the same
-    # `sandbox-provider-keys` Secret; only this profile gets it.
-    platform-test:
-      enabled: false
-      image: ghcr.io/mogenius/agent-sandbox-chart/sandbox-platform-test:1.2.1
-      imagePullPolicy: IfNotPresent
-      containerName: sandbox
-      command: []
-      args: []
-      env:
-        - name: ANTHROPIC_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: sandbox-provider-keys
-              key: anthropic-api-key
-              optional: true
-        - name: CLAUDE_CODE_OAUTH_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: sandbox-provider-keys
-              key: claude-code-oauth-token
-              optional: true
-        - name: MOGENIUS_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: sandbox-provider-keys
-              key: mogenius-api-key
-              optional: true
-      port: 8080
-      probes:
-        enabled: true
-        path: /healthz
-      # Chromium needs more memory than the default sandbox.
-      resources:
-        requests:
-          cpu: 250m
-          memory: 1Gi
-          ephemeral-storage: 512Mi
-        limits:
-          cpu: "2"
-          memory: 4Gi
-      storage:
-        enabled: true
-        size: 1Gi
-        storageClassName: ""
-        mountPath: /home/coder/project
-      runtimeClassName: ""
-      # Chromium runs as uid 1000 without privileges and without its own
-      # sandbox, which needs user namespaces the default seccomp profile
-      # forbids (see "The platform-test image" in the README).
-      podSecurityContext:
-        fsGroup: 1000
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        allowPrivilegeEscalation: false
-      restartPolicy: OnFailure
-      # Chromium crashes on larger pages with the default 64 MB /dev/shm.
-      shmSizeLimit: 1Gi
-      podSpecExtra: {}
-      containerExtra: {}
-      warmPool:
-        replicas: 1
-        updateStrategy: OnReplenish
+      path: /healthz
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+        ephemeral-storage: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+    storage:
+      # A PVC per sandbox, kept across stop/start. Empty mountPath = created but
+      # not mounted (the runtime manages its own workspace).
+      enabled: true
+      size: 1Gi
+      storageClassName: ""
+      mountPath: /home/coder/project
+    # Per-template RuntimeClass override; empty = sandboxes.runtimeClassName.
+    runtimeClassName: ""
+    # Pod- and container-level security contexts, passed through.
+    podSecurityContext:
+      fsGroup: 1000
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+    restartPolicy: OnFailure
+    # Size of a memory-backed /dev/shm; empty = the runtime's 64 MB. Browser-based
+    # images need more.
+    shmSizeLimit: ""
+    # Free-form additions merged into the pod spec (volumes, initContainers,
+    # nodeSelector, tolerations …) and the container (volumeMounts …); volumes and
+    # volumeMounts are appended to the modelled ones.
+    podSpecExtra: {}
+    containerExtra: {}
+  warmPool:
+    # Pre-warmed sandboxes kept ready; 0 = no pool (claims start cold).
+    replicas: 1
+    # OnReplenish (default) or Recreate — how pool sandboxes pick up template
+    # changes.
+    updateStrategy: OnReplenish
