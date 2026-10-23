@@ -71,6 +71,7 @@ spec:
           ports:
             - containerPort: {{ $port }}
               name: http
+              protocol: TCP
           {{- if and $t.probes $t.probes.enabled }}
           readinessProbe:
             httpGet:
@@ -119,7 +120,11 @@ spec:
   {{- else }}
   networkPolicyManagement: Unmanaged
   {{- end }}
-  {{- if and $t.storage $t.storage.enabled }}
+  envVarsInjectionPolicy: Disallowed
+  failedPodPolicy: Retain
+  {{- if not (and $t.storage $t.storage.enabled) }}
+  volumeClaimTemplatesPolicy: Disallowed
+  {{- else }}
   volumeClaimTemplatesPolicy: Overrides
   volumeClaimTemplates:
     - metadata:
