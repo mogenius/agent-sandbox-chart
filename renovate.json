@@ -31,6 +31,13 @@
   ],
   "packageRules": [
     {
+      "description": "Released from this repo; release-please sets the version in each release PR",
+      "matchDepNames": [
+        "ghcr.io/mogenius/agent-sandbox-chart/sandbox-default"
+      ],
+      "enabled": false
+    },
+    {
       "description": "opencode 3.x may change the HTTP API the Sandbox Agent Hub uses: upgrade by hand",
       "matchDepNames": [
         "ghcr.io/anomalyco/opencode"

@@ -2,8 +2,8 @@
 # a browser for agents that test the mogenius platform through its UI.
 #
 # Built on the published sandbox-default image, so code-server, Claude Code,
-# Node.js, Python and the onboarding fix stay identical; raise BASE_VERSION
-# with the chart's releases like the other pins. Adds Playwright MCP
+# Node.js, Python and the onboarding fix stay identical. release-please sets
+# BASE_VERSION to the chart version in every release PR. Adds Playwright MCP
 # (`playwright-mcp`, https://github.com/microsoft/playwright-mcp) and the
 # Chromium build that exactly this Playwright MCP needs, installed with the
 # Playwright it depends on, so the two cannot drift apart. The browser lives
@@ -15,7 +15,9 @@
 # (which needs user namespaces most clusters' seccomp profile forbids):
 # Playwright MCP launches the bundled Chromium with chromiumSandbox off, and
 # callers pass `--no-sandbox` as well so a changed default cannot break it.
-ARG BASE_VERSION=1.2.1
+# x-release-please-start-version
+ARG BASE_VERSION=1.3.1
+# x-release-please-end
 FROM ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:${BASE_VERSION}
 
 USER root
