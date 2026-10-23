@@ -117,7 +117,7 @@ spec:
     {{- include "mogenius-agent-sandbox.sandboxNetworkPolicy" $root | trim | nindent 4 }}
   {{- end }}
   {{- else }}
-  networkPolicyManagement: Disabled
+  networkPolicyManagement: Unmanaged
   {{- end }}
   {{- if and $t.storage $t.storage.enabled }}
   volumeClaimTemplatesPolicy: Overrides

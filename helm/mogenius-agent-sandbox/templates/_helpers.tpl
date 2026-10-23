@@ -72,20 +72,17 @@ apiserver, plus any additionalBlockedCidrs) and keeps DNS reachable.
 {{- if $np.blockApiServer -}}{{- $except = concat $except $np.apiServerCidrs -}}{{- end -}}
 {{- if $np.additionalBlockedCidrs -}}{{- $except = concat $except $np.additionalBlockedCidrs -}}{{- end -}}
 {{- /*
-Scope the policy to Egress unless ingress peers are configured, so enabling it
-only tightens egress and leaves the pods' ingress exactly as it was (an egress-
-only policy with no policyTypes would otherwise implicitly deny all ingress).
+The CRD has no policyTypes: the controller always sets Ingress and Egress, so an
+empty ingress list would deny all ingress. Without ingressFrom, keep the
+controller's own default peer (the upstream sandbox router).
 */ -}}
-policyTypes:
-  {{- with $np.ingressFrom }}
-  - Ingress
-  {{- end }}
-  - Egress
-{{- with $np.ingressFrom }}
+{{- $ingressFrom := $np.ingressFrom -}}
+{{- if not $ingressFrom -}}
+{{- $ingressFrom = list (dict "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" "agent-sandbox-system")) "podSelector" (dict "matchLabels" (dict "app" "sandbox-router"))) -}}
+{{- end }}
 ingress:
   - from:
-      {{- toYaml . | nindent 6 }}
-{{- end }}
+      {{- toYaml $ingressFrom | nindent 6 }}
 egress:
   {{- if $np.allowDns }}
   - ports:

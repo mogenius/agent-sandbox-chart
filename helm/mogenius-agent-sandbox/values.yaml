@@ -94,7 +94,8 @@ sandboxes:
     # instead of leaning on the controller's built-in default. Turn off to fall
     # back to that default (what upstream tests against).
     explicit: true
-    # Extra ingress peers, e.g. a router or gateway running elsewhere:
+    # Ingress peers, e.g. a router or gateway running elsewhere. Empty keeps the
+    # controller's default peer (sandbox-router pods in agent-sandbox-system):
     # - namespaceSelector:
     #     matchLabels: { kubernetes.io/metadata.name: sandbox-router }
     #   podSelector:
