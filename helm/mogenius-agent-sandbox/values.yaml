@@ -168,11 +168,14 @@ sandboxes:
             name: sandbox-provider-keys
             key: claude-code-oauth-token
             optional: true
-    # The port the sandbox serves on. Set 0 to expose no port.
-    port: 8080
+    # The port the sandbox serves on. The claude-first default image serves no
+    # HTTP, so 0 exposes no port. Set a port only for a bring-your-own image that
+    # runs a server.
+    port: 0
     probes:
-      # HTTP probes against `port`. Disable for images without an HTTP server.
-      enabled: true
+      # HTTP probes against `port`. Off for the claude-first default image (no
+      # HTTP server); enable for a bring-your-own image that serves one.
+      enabled: false
       path: /healthz
     resources:
       requests:
