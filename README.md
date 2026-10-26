@@ -8,7 +8,7 @@ Helm chart and sandbox images behind the mogenius **Agent Sandbox** blueprint
 helm/mogenius-agent-sandbox/    the chart: kubernetes-sigs/agent-sandbox controller + CRDs,
                                 sandbox namespace, profiles with warm pools
 images/sandbox-default/         Dockerfile of the default sandbox image
-                                (code-server, Python 3, uv, Node.js, Claude Code)
+                                (claude-first: Claude Code, Node.js, Python 3, uv — no web IDE)
 images/sandbox-opencode/        Dockerfile of the opencode profile's image
                                 (opencode 2.x server, Claude Code, git, Node.js, Python, Go)
 images/sandbox-platform-test/   Dockerfile of the platform-test profile's image
@@ -89,19 +89,25 @@ To move the chart to a new upstream release: `hack/update-upstream.sh v1.0.3`, d
 
 ## The default image
 
-`images/sandbox-default`: `codercom/code-server` plus Python 3 with pip/venv and uv, Node.js
-LTS with `typescript` and `tsx`, git, build tools and Claude Code. Runs as `coder` (uid 1000),
-serves VS Code on 8080 without its own auth (the mogenius tunnel authenticates), workspace
-volume at `/home/coder/project`, Claude Code's first-run wizard pre-completed so `claude`
-authenticates from `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`.
+`images/sandbox-default`: claude-first, no web IDE. Debian slim with Claude Code, Node.js LTS
+(`typescript`, `tsx`), Python 3 with pip/venv and uv, git, ripgrep, jq and build tools. Runs
+as `coder` (uid 1000), workspace volume at `/home/coder/project`. It serves no HTTP and
+exposes no port — the `default` template sets `port: 0` and `probes.enabled: false`. The
+entrypoint is a keep-alive (`sleep infinity`) so warm-pool pods stay ready; an interactive
+login over the SSH gateway (or an `exec`) drops straight into `claude`, launched per session
+rather than as PID 1. `claude` authenticates from `CLAUDE_CODE_OAUTH_TOKEN` or
+`ANTHROPIC_API_KEY` injected at pod start; `seed-claude-config.sh` pre-answers the first-run
+wizard and the API-key approval from that env, so no prompt appears (the key is never baked
+into the image).
 
 ### Bring your own sandbox image
 
 Copy the Dockerfile, add your tooling, build for `linux/amd64` and `linux/arm64`, push to a
 registry your cluster can pull from, and set it as the `default` profile's image in the
 Sandboxes page. Keep the contract the chart relies on: uid 1000, the workspace at
-`/home/coder/project`, `GET /healthz` on port 8080, and `bash`, `curl`, `tar` for the SSH
-gateway and VS Code Remote-SSH.
+`/home/coder/project`, a long-running entrypoint (or set the template `command` to
+`["sleep", "infinity"]`), and `bash`, `curl`, `tar` for the SSH gateway and VS Code
+Remote-SSH. If your image serves HTTP, set the template's `port` and turn `probes` back on.
 
 ## The opencode image
 
