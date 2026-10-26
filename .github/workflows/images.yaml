@@ -18,8 +18,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       # sandbox-platform-test is built on the sandbox-default of this pull request.
       - if: matrix.image == 'sandbox-platform-test'
-        run: docker build -t ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:ci images/sandbox-default
-      - run: docker build --build-arg BASE_VERSION=ci -t ${{ matrix.image }}:ci images/${{ matrix.image }}
+        run: docker build -f images/sandbox-default/Dockerfile -t ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:ci .
+      - run: docker build -f images/${{ matrix.image }}/Dockerfile --build-arg BASE_VERSION=ci -t ${{ matrix.image }}:ci .
       - name: tools
         run: |
           set -euo pipefail

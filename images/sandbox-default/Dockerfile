@@ -47,9 +47,9 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" typescript
 
 # Runtime config seeder, keep-alive entrypoint, and the login snippet that drops
 # interactive sessions into Claude Code.
-COPY --chmod=0755 seed-claude-config.sh /usr/local/bin/seed-claude-config.sh
-COPY --chmod=0755 entrypoint.sh /usr/local/bin/sandbox-entrypoint.sh
-COPY --chmod=0644 claude-login.sh /etc/profile.d/zz-claude-login.sh
+COPY --chmod=0755 images/sandbox-default/seed-claude-config.sh /usr/local/bin/seed-claude-config.sh
+COPY --chmod=0755 images/sandbox-default/entrypoint.sh /usr/local/bin/sandbox-entrypoint.sh
+COPY --chmod=0644 images/sandbox-default/claude-login.sh /etc/profile.d/zz-claude-login.sh
 
 USER coder
 WORKDIR /home/coder/project
