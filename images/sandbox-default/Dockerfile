@@ -16,7 +16,7 @@
 # baked into the image — it is injected at pod start. The entrypoint and the
 # login shell seed ~/.claude.json so the first-run wizard and the "use this API
 # key?" prompt are both pre-answered (see seed-claude-config.sh).
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
