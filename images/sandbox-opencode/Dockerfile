@@ -14,7 +14,7 @@
 # Runs as uid 1000 with HOME=/workspace (the profile's volume), like the
 # profile's securityContext expects. Serves the opencode HTTP API on 8888;
 # the chart's probes use /api/info.
-ARG OPENCODE_VERSION=2.1.4
+ARG OPENCODE_VERSION=2.2.5
 FROM ghcr.io/anomalyco/opencode:${OPENCODE_VERSION} AS opencode
 
 FROM alpine:3.24
