@@ -11,7 +11,7 @@ env:
 
 jobs:
   build-image:
-    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@e375ba30acf0eca00d70f355e3d11ed884c66b15 # v1.10.4
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@3c8497d69c31bf66fc03e5df6b37bbda428ff220 # v1.10.5
     secrets: inherit
     with:
       version: ${{ github.ref_name }}
@@ -21,7 +21,7 @@ jobs:
       push_latest: true
 
   build-image-opencode:
-    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@e375ba30acf0eca00d70f355e3d11ed884c66b15 # v1.10.4
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@3c8497d69c31bf66fc03e5df6b37bbda428ff220 # v1.10.5
     secrets: inherit
     with:
       version: ${{ github.ref_name }}
@@ -33,7 +33,7 @@ jobs:
   # Built on the sandbox-default image of the same release.
   build-image-platform-test:
     needs: [build-image]
-    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@e375ba30acf0eca00d70f355e3d11ed884c66b15 # v1.10.4
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@3c8497d69c31bf66fc03e5df6b37bbda428ff220 # v1.10.5
     secrets: inherit
     with:
       version: ${{ github.ref_name }}
@@ -46,7 +46,7 @@ jobs:
 
   helm-publish:
     needs: [build-image, build-image-opencode, build-image-platform-test]
-    uses: mogenius/github-actions/.github/workflows/helm-publish.yml@e375ba30acf0eca00d70f355e3d11ed884c66b15 # v1.10.4
+    uses: mogenius/github-actions/.github/workflows/helm-publish.yml@3c8497d69c31bf66fc03e5df6b37bbda428ff220 # v1.10.5
     secrets:
       APP_ID: ${{ secrets.RELEASE_APP_ID }}
       APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_SECRET }}
