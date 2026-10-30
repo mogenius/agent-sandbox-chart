@@ -16,7 +16,7 @@
 # Playwright MCP launches the bundled Chromium with chromiumSandbox off, and
 # callers pass `--no-sandbox` as well so a changed default cannot break it.
 # x-release-please-start-version
-ARG BASE_VERSION=1.3.1
+ARG BASE_VERSION=1.4.0
 # x-release-please-end
 FROM ghcr.io/mogenius/agent-sandbox-chart/sandbox-default:${BASE_VERSION}
 
