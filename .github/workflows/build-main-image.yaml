@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   build-sandbox-default:
-    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@b198c21dc984080a27bbda6f6d88f2c852c79020 # v1.13.3
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@b768adfe1456612b78e91b4f92425e37e231344f # v1.13.4
     secrets: inherit
     with:
       version: "main"
@@ -21,7 +21,7 @@ jobs:
       push_latest: false
 
   build-sandbox-opencode:
-    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@b198c21dc984080a27bbda6f6d88f2c852c79020 # v1.13.3
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@b768adfe1456612b78e91b4f92425e37e231344f # v1.13.4
     secrets: inherit
     with:
       version: "main"
@@ -33,7 +33,7 @@ jobs:
   # Built on the sandbox-default image of this push.
   build-sandbox-platform-test:
     needs: [build-sandbox-default]
-    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@b198c21dc984080a27bbda6f6d88f2c852c79020 # v1.13.3
+    uses: mogenius/github-actions/.github/workflows/build-multiarch.yml@b768adfe1456612b78e91b4f92425e37e231344f # v1.13.4
     secrets: inherit
     with:
       version: "main"
