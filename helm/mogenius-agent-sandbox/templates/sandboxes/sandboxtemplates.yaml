@@ -34,6 +34,8 @@ kind: SandboxTemplate
 metadata:
   name: {{ $name }}
   namespace: {{ include "mogenius-agent-sandbox.sandboxNamespace" $root }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
   labels:
     {{- include "mogenius-agent-sandbox.labels" $root | nindent 4 }}
     mogenius.io/sandbox-profile: {{ $name }}
