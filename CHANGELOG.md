@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.4.0](https://github.com/mogenius/agent-sandbox-chart/compare/1.3.1...1.4.0) (2026-11-27)
+
+
+### Features
+
+* **deps:** update ghcr.io/anomalyco/opencode docker tag to v2.4.1 ([2c760a8](https://github.com/mogenius/agent-sandbox-chart/commit/2c760a80d90d5d33e2ab8b43ef52cdecee5da433))
+* **sandbox-default:** claude-first image, drop code-server ([75cc430](https://github.com/mogenius/agent-sandbox-chart/commit/75cc4308153803e99532db60ffc6a248835752c3))
+* **sandbox-default:** claude-first image, drop code-server ([1b128c1](https://github.com/mogenius/agent-sandbox-chart/commit/1b128c179a7f069bf14c99b5b02f10b0e0beb4d3))
+
+
+### Bug Fixes
+
+* adding sync wave for sandbox resources so that those get synced last ([77c8523](https://github.com/mogenius/agent-sandbox-chart/commit/77c8523faba59fb6a8c322af0ec00b4bbf3898dc))
+* build on debian:trixie-slim, the Debian 13 the code-server base had ([913c06b](https://github.com/mogenius/agent-sandbox-chart/commit/913c06bd3c73fa3d923a13130e922acea3640eb2))
+* **ci:** build sandbox-default with repo-root context ([a1f581d](https://github.com/mogenius/agent-sandbox-chart/commit/a1f581d1ac9fc60720584225155035027ff44039))
+* **ci:** build sandbox-default with repo-root context ([c1403d1](https://github.com/mogenius/agent-sandbox-chart/commit/c1403d1d442adf5c27c33ad5285e5b582556d731))
+* **deps:** update dependency kubernetes-sigs/agent-sandbox to v1.0.10 ([6715224](https://github.com/mogenius/agent-sandbox-chart/commit/6715224916fbcb34ee14a11d76de9d2f824d6620))
+* **deps:** update dependency kubernetes-sigs/agent-sandbox to v1.0.10 ([c0f5021](https://github.com/mogenius/agent-sandbox-chart/commit/c0f5021fd5ddb04a794b51b919669971ea7a1c6a))
+* **deps:** update dependency kubernetes-sigs/agent-sandbox to v1.0.12 ([e14aa3b](https://github.com/mogenius/agent-sandbox-chart/commit/e14aa3bb57db55753bfcea2d3297c9c238ef8297))
+
 ## [1.3.1](https://github.com/mogenius/agent-sandbox-chart/compare/1.3.0...1.3.1) (2026-10-23)
 
 
